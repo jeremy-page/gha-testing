@@ -1,0 +1,68 @@
+name: Release to Github
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  wf_vars:
+    name: Set workflow variables
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ env.VERSION }}
+    steps:
+      - name: Check out changes
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Set base environment variables
+        run: |
+          echo >> $GITHUB_ENV VERSION="v-$(date +%Y.%m.%d-%H%M%S)"
+
+  publish_github_release:
+    name: Publish to Github
+    needs:
+      - wf_vars
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out changes
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Check if tags exist
+        id: tagged
+        shell: bash
+        run: |
+          count=$(git tag --list 'v-*' | wc -l)
+          if [ $count -gt 0 ]; then
+            echo "::set-output name=tagged::1";
+          else
+            echo "::set-output name=tagged::0";
+          fi
+      - name: Build changelog if tags exist
+        if: steps.tagged.outputs.tagged == 1
+        uses: mikepenz/release-changelog-builder-action@v2
+        with:
+          configuration: '.github/changelog_config.json'
+          # Allow changelog tests in forks
+          owner: 'CDCgov'
+          repo: 'prime-reportstream'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ needs.wf_vars.outputs.version }}
+          artifacts: "archives/*.tar.gz,LICENSE"
+          generateReleaseNotes: true
+      - name: Delete older releases
+        uses: dev-drprasad/delete-older-releases@v0.2.0
+        with:
+          keep_latest: 5
+          delete_tags: false
+          delete_tag_pattern: 'v-20'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
