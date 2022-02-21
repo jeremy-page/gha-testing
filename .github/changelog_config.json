@@ -71,6 +71,7 @@
       }
     },
     "base_branches": [
-      "master"
+      "master",
+      "main"
     ]
 }
